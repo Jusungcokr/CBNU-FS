@@ -1110,6 +1110,9 @@
       $$("a", nav).forEach(function (link) {
         link.addEventListener("click", function () { setOpen(false); });
       });
+      $$("[data-admin-open]", nav).forEach(function (btn) {
+        btn.addEventListener("click", function () { setOpen(false); });
+      });
     }
 
     document.addEventListener("keydown", function (event) {

@@ -246,6 +246,38 @@ code {
 
 .nav-cta { flex: none; }
 
+.nav-admin {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--white);
+  color: #3A3B3B;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.18s var(--ease), color 0.18s var(--ease), background 0.18s var(--ease);
+}
+.nav-admin:hover { border-color: var(--red); color: var(--red); background: var(--red-soft); }
+.nav-admin-icon { width: 15px; height: 15px; flex: none; }
+.nav-admin.is-signed-in {
+  border-color: rgba(183, 38, 84, 0.35);
+  background: var(--red-soft);
+  color: var(--red-strong);
+}
+
+@media (max-width: 1180px) and (min-width: 981px) {
+  .nav { gap: 18px; }
+  .nav-list { gap: 16px; }
+  .nav-link { font-size: 0.88rem; }
+  .nav-admin { padding: 8px 12px; font-size: 0.8rem; }
+}
+
 .nav-toggle {
   display: none;
   flex-direction: column;
@@ -1670,6 +1702,14 @@ body.nav-open .nav-toggle span:nth-child(3) { transform: translateY(-7px) rotate
   .nav-link::after { display: none; }
   .nav-link.is-active { color: var(--red); }
   .nav-cta { margin-top: 16px; width: 100%; padding: 14px 20px; }
+  .nav-admin {
+    margin-top: 10px;
+    width: 100%;
+    justify-content: center;
+    padding: 13px 20px;
+    font-size: 0.95rem;
+  }
+  .nav-admin-icon { width: 17px; height: 17px; }
 
   .hero { min-height: auto; padding: calc(var(--header-h) + 52px) 0 76px; }
   .hero-watermark { display: none; }

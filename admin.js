@@ -10,6 +10,10 @@
   "use strict";
 
   var APP = window.CBNU_APP;
+  var CONFIG = window.CBNU_FS_SUPABASE || {};
+  // 아이디만 입력하면 내부적으로 <아이디>@cbnufs.local 로 바꿔 Supabase Auth에 넘긴다.
+  var ID_DOMAIN = "cbnufs.local";
+  var ID_PATTERN = /^[A-Za-z0-9._-]{2,32}$/;
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
@@ -156,8 +160,44 @@
     return APP && typeof APP.client === "function" ? APP.client() : null;
   }
 
+  // '아이디' → '아이디@cbnufs.local'. '@'가 있으면 이메일로 그대로 쓴다.
+  function toLoginEmail(raw) {
+    var value = String(raw || "").trim();
+    if (!value) { return ""; }
+    if (value.indexOf("@") !== -1) { return value; }
+    return value.toLowerCase() + "@" + ID_DOMAIN;
+  }
+
+  function isBareId(raw) {
+    var value = String(raw || "").trim();
+    return !!value && value.indexOf("@") === -1;
+  }
+
   function toast(message) {
     if (APP && typeof APP.toast === "function") { APP.toast(message); }
+  }
+
+  /* ---------------- 상단 헤더 버튼 ---------------- */
+  function renderNavAdmin() {
+    var btn = document.getElementById("navAdminBtn");
+    var label = document.getElementById("navAdminLabel");
+    if (!btn || !label) { return; }
+    var signedIn = !!(state.session && state.session.user);
+    var isAdmin = signedIn && state.admin;
+    btn.classList.toggle("is-signed-in", isAdmin);
+    if (isAdmin) {
+      label.textContent = "관리자";
+      btn.setAttribute("aria-label", "관리자 페이지 열기 (로그인됨)");
+      btn.title = (state.session && state.session.user && state.session.user.email) || "임원 관리";
+    } else if (signedIn) {
+      label.textContent = "로그인됨";
+      btn.setAttribute("aria-label", "로그인 상태 확인 · 임원 관리 열기");
+      btn.title = (state.session && state.session.user && state.session.user.email) || "로그인됨";
+    } else {
+      label.textContent = "임원 관리";
+      btn.setAttribute("aria-label", "임원 관리 로그인");
+      btn.title = "임원 관리 로그인";
+    }
   }
 
   /* ---------------- 패널 열기/닫기 ---------------- */
@@ -200,6 +240,7 @@
           state.session = nextSession;
           if (event === "SIGNED_OUT") {
             state.admin = false;
+            renderNavAdmin();
             if (!panel.hidden) { renderViews(); }
             return;
           }
@@ -210,6 +251,7 @@
           }
           if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED" || event === "INITIAL_SESSION") {
             checkAdmin().then(function () {
+              renderNavAdmin();
               if (!panel.hidden) { renderViews(); }
             });
           }
@@ -287,6 +329,7 @@
 
   /* ---------------- 화면 ---------------- */
   function renderHead() {
+    renderNavAdmin();
     if (!headActions) { return; }
     headActions.innerHTML = "";
 
@@ -394,10 +437,21 @@
 
   /* ---------------- 로그인 ---------------- */
   function renderLoginView() {
-    var box = card("임원 로그인", "동아리 임원 계정으로 로그인하면 사이트 내용을 직접 수정할 수 있습니다.");
+    var box = card("임원 로그인", "아이디(또는 이메일)와 비밀번호로 로그인하면 사이트 내용을 직접 수정할 수 있습니다.");
     var form = el("form", "adm-form");
-    form.appendChild(makeField({ key: "email", label: "이메일", type: "email", placeholder: "name@example.com" }, ""));
-    form.appendChild(makeField({ key: "password", label: "비밀번호", type: "password", placeholder: "비밀번호" }, ""));
+    var idField = makeField({ key: "email", label: "아이디 또는 이메일", type: "text", placeholder: "cbnufs 또는 name@example.com" }, "");
+    var idInput = idField.querySelector("input");
+    if (idInput) {
+      idInput.setAttribute("autocomplete", "username");
+      idInput.setAttribute("autocapitalize", "none");
+      idInput.setAttribute("autocorrect", "off");
+      idInput.setAttribute("spellcheck", "false");
+    }
+    form.appendChild(idField);
+    var pwField = makeField({ key: "password", label: "비밀번호", type: "password", placeholder: "비밀번호" }, "");
+    var pwInput = pwField.querySelector("input");
+    if (pwInput) { pwInput.setAttribute("autocomplete", "current-password"); }
+    form.appendChild(pwField);
 
     var actions = el("div", "adm-form-actions");
     var loginBtn = button("로그인", "primary", null);
@@ -407,15 +461,23 @@
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
-      var email = String(form.querySelector('[data-field="email"]').value).trim();
+      var rawId = String(form.querySelector('[data-field="email"]').value).trim();
       var password = String(form.querySelector('[data-field="password"]').value);
-      if (!email) { toast("이메일을 입력해 주세요."); return; }
+      if (!rawId) { toast("아이디 또는 이메일을 입력해 주세요."); return; }
       if (!password) { toast("비밀번호를 입력해 주세요."); return; }
+      var email = toLoginEmail(rawId);
       loginBtn.disabled = true;
       client().auth.signInWithPassword({ email: email, password: password }).then(function (res) {
         loginBtn.disabled = false;
         if (res && res.error) {
-          toast("로그인하지 못했습니다: " + res.error.message);
+          var msg = res.error.message || "";
+          if (/invalid login credentials/i.test(msg)) {
+            toast("아이디(또는 이메일) 또는 비밀번호가 맞지 않습니다." + (isBareId(rawId) ? " 처음 쓰는 아이디는 '관리자' 탭에서 만들 수 있습니다." : ""));
+          } else if (/email not confirmed/i.test(msg)) {
+            toast("이 계정은 이메일 인증이 끝나지 않았습니다. 아이디 계정은 관리자 탭에서 새로 만들어 주세요.");
+          } else {
+            toast("로그인하지 못했습니다: " + msg);
+          }
           return;
         }
         state.session = res.data.session;
@@ -427,7 +489,8 @@
     });
 
     box.appendChild(form);
-    box.appendChild(note("처음 로그인하는 경우: 관리자가 보낸 초대 메일의 링크를 누르면 비밀번호를 설정할 수 있습니다. 비밀번호가 없다면 아래 '로그인 링크 메일 받기'로 들어온 뒤 비밀번호를 설정하세요."));
+    box.appendChild(note("아이디만 입력하면(예: cbnufs) 내부적으로 cbnufs@cbnufs.local 계정으로 로그인합니다. 이메일 계정(kimjusung1113@gmail.com 등)은 이메일을 그대로 입력하면 됩니다."));
+    box.appendChild(note("처음 로그인하는 이메일 계정: 관리자가 보낸 초대 메일의 링크를 누르면 비밀번호를 설정할 수 있습니다. 비밀번호가 없다면 아래 '로그인 링크 메일 받기'로 들어온 뒤 비밀번호를 설정하세요. (메일은 아이디 계정에는 보낼 수 없습니다.)"));
 
     var alt = el("div", "adm-form-actions");
     var emailInput = form.querySelector('[data-field="email"]');
@@ -435,6 +498,7 @@
     alt.appendChild(button("로그인 링크 메일 받기", "outline", function () {
       var email = String(emailInput.value).trim();
       if (!email) { toast("이메일을 먼저 입력해 주세요."); return; }
+      if (isBareId(email)) { toast("'" + email + "' 은(는) 메일함이 있는 아이디가 아닙니다. 아이디 계정은 비밀번호로 로그인해 주세요."); return; }
       client().auth.signInWithOtp({
         email: email,
         options: { emailRedirectTo: window.location.origin + window.location.pathname }
@@ -447,6 +511,7 @@
     alt.appendChild(button("비밀번호 재설정 메일", "outline", function () {
       var email = String(emailInput.value).trim();
       if (!email) { toast("이메일을 먼저 입력해 주세요."); return; }
+      if (isBareId(email)) { toast("'" + email + "' 은(는) 메일함이 있는 아이디가 아닙니다. 아이디 계정의 비밀번호는 관리자 탭에서 새로 만들어 주세요."); return; }
       client().auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin + window.location.pathname
       }).then(function (res) {
@@ -1114,7 +1179,10 @@
     var list = el("div", "adm-admins");
     state.admins.forEach(function (row) {
       var line = el("div", "adm-admin-line");
-      line.appendChild(el("span", null, row.email));
+      var isIdAccount = String(row.email || "").toLowerCase().indexOf("@" + ID_DOMAIN) !== -1;
+      var shown = isIdAccount ? String(row.email).slice(0, -(ID_DOMAIN.length + 1)) : row.email;
+      line.appendChild(el("span", null, shown));
+      if (isIdAccount) { line.appendChild(el("span", "adm-badge", "아이디")); }
       if (state.session && state.session.user && row.email === state.session.user.email) {
         line.appendChild(el("span", "adm-badge", "나"));
       } else {
@@ -1148,10 +1216,138 @@
       }).catch(function () { toast("추가하지 못했습니다."); });
     }));
     box.appendChild(form);
-    box.appendChild(note("새 관리자는 '임원 관리 → 로그인 링크 메일 받기'로 들어와 비밀번호를 설정하면 됩니다."));
+    box.appendChild(note("이메일 관리자는 '임원 관리 → 로그인 링크 메일 받기'로 들어와 비밀번호를 설정하면 됩니다. 이메일 없이 아이디만 쓰는 계정은 아래 '새 아이디·비밀번호 직접 만들기'에서 바로 만들 수 있습니다."));
 
     body.innerHTML = "";
     body.appendChild(box);
+    body.appendChild(createAccountCard());
+  }
+
+  /* ---------------- 새 아이디·비밀번호 직접 만들기 ---------------- */
+  function createAccountCard() {
+    var box = card("새 아이디·비밀번호 직접 만들기", "이메일 없이 아이디와 비밀번호만으로 로그인하는 임원 계정을 바로 만들 수 있습니다.");
+
+    var idField = makeField({ key: "newId", label: "아이디 (영문·숫자·._- 2~32자)", type: "text", placeholder: "예: cbnufs, jusung" }, "");
+    var idInput = idField.querySelector("input");
+    if (idInput) {
+      idInput.setAttribute("autocomplete", "off");
+      idInput.setAttribute("autocapitalize", "none");
+      idInput.setAttribute("autocorrect", "off");
+      idInput.setAttribute("spellcheck", "false");
+    }
+    box.appendChild(idField);
+    box.appendChild(makeField({ key: "newPw", label: "비밀번호 (6자 이상)", type: "password", placeholder: "" }, ""));
+    box.appendChild(makeField({ key: "newPw2", label: "비밀번호 확인", type: "password", placeholder: "" }, ""));
+
+    var actions = el("div", "adm-form-actions");
+    var submit = button("아이디 계정 만들기", "primary", null);
+    actions.appendChild(submit);
+    box.appendChild(actions);
+    box.appendChild(note("아이디는 소문자로 저장되고 내부적으로 '<아이디>@cbnufs.local' 계정이 만들어집니다. 만든 뒤 로그아웃하고 그 아이디·비밀번호로 로그인하면 됩니다. (이 작업 중에는 지금 로그인한 관리자 세션이 그대로 유지됩니다.)"));
+
+    submit.addEventListener("click", function () {
+      var id = String($('[data-field="newId"]', box).value).trim();
+      var pw = String($('[data-field="newPw"]', box).value);
+      var pw2 = String($('[data-field="newPw2"]', box).value);
+
+      if (!ID_PATTERN.test(id)) { toast("아이디는 영문·숫자·._- 로 2~32자까지 쓸 수 있습니다. (예: cbnufs)"); return; }
+      if (pw.length < 6) { toast("비밀번호는 6자 이상으로 정해 주세요."); return; }
+      if (pw !== pw2) { toast("비밀번호가 서로 다릅니다."); return; }
+
+      var c = client();
+      if (!c) { toast("Supabase 연결이 필요합니다."); return; }
+      if (!window.supabase || typeof window.supabase.createClient !== "function" || !CONFIG.url || !CONFIG.anonKey) {
+        toast("Supabase 클라이언트를 만들 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.");
+        return;
+      }
+
+      var loginId = id.toLowerCase();
+      var email = loginId + "@" + ID_DOMAIN;
+      submit.disabled = true;
+
+      function removeAdminEmail() {
+        return c.from("admin_emails").delete().eq("email", email).then(function () { return true; }).catch(function () { return false; });
+      }
+
+      // 1) 먼저 admin_emails 에 등록 → 2) 별도 클라이언트로 계정 생성(현재 세션 유지)
+      c.from("admin_emails").insert({ email: email }).then(function (res) {
+        if (res && res.error) {
+          submit.disabled = false;
+          var msg = res.error.message || "";
+          toast(/duplicate|already exists|unique/i.test(msg) ? "이미 관리자로 등록된 아이디입니다: " + loginId : "관리자 목록에 등록하지 못했습니다: " + msg);
+          return;
+        }
+
+        var temp = null;
+        try {
+          temp = window.supabase.createClient(CONFIG.url, CONFIG.anonKey, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false,
+              storageKey: "cbnu-fs-create-account-only"
+            }
+          });
+        } catch (err) {
+          temp = null;
+        }
+        if (!temp) {
+          removeAdminEmail();
+          submit.disabled = false;
+          toast("계정 생성 도구를 준비하지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.");
+          return;
+        }
+
+        temp.auth.signUp({ email: email, password: pw }).then(function (r) {
+          submit.disabled = false;
+          var serverError = r && r.error ? r.error : null;
+
+          if (serverError) {
+            var m = serverError.message || "";
+            removeAdminEmail();
+            if (/already|registered|exists/i.test(m)) {
+              toast("이미 계정이 있는 아이디입니다: " + loginId + " (다른 아이디를 써 주세요)");
+            } else {
+              toast("계정을 만들지 못했습니다: " + m);
+            }
+            return;
+          }
+
+          var data = (r && r.data) || {};
+          var user = data.user || null;
+          var session = data.session || null;
+          var identities = user && Array.isArray(user.identities) ? user.identities : null;
+
+          if (identities && identities.length === 0) {
+            // 이미 존재하는 계정이면 Supabase가 오류 대신 빈 identities 를 돌려준다.
+            removeAdminEmail();
+            toast("이미 계정이 있는 아이디입니다: " + loginId + " (다른 아이디를 써 주세요)");
+            return;
+          }
+
+          if (!session) {
+            // Confirm email 이 켜져 있으면 세션이 없고, 메일함이 없는 @cbnufs.local 은 인증할 수 없다.
+            toast("관리자 목록에는 넣었지만 이메일 인증 설정 때문에 아직 로그인되지 않습니다. Supabase Auth에서 'Confirm email'을 끄면 바로 로그인됩니다.");
+            fetchAdmins();
+            return;
+          }
+
+          // 임시 클라이언트 세션은 메모리에만 있고, 만들자마자 정리한다.
+          try { temp.auth.signOut(); } catch (err) { /* noop */ }
+          toast("'" + loginId + "' 아이디를 만들었습니다. 로그아웃한 뒤 이 아이디와 비밀번호로 로그인할 수 있습니다.");
+          fetchAdmins();
+        }).catch(function (err) {
+          submit.disabled = false;
+          removeAdminEmail();
+          toast("계정을 만들지 못했습니다: " + (err && err.message ? err.message : "알 수 없는 오류"));
+        });
+      }).catch(function () {
+        submit.disabled = false;
+        toast("관리자 목록에 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      });
+    });
+
+    return box;
   }
 
   if (document.readyState === "loading") {
