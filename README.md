@@ -10,7 +10,8 @@
 | `styles.css` | 디자인 (CBNU 레드 `#B72654` · 골드 `#BE9F56` · 블랙 `#1E1F1F`) |
 | `data.js` | **선수단·임원·회계·공지·FAQ·연락처 데이터** (여기만 고치면 됩니다) |
 | `app.js` | 화면 렌더링, 포지션/회계 필터, 폼, 모달, 모바일 메뉴 |
-| `favicon.svg` | 브라우저 탭 아이콘 |
+| `favicon.svg` | 브라우저 탭 아이콘 (충북대 엠블럼) |
+| `assets/` | 충북대학교 공식 엠블럼 — `cbnu-emblem.png`(CBNU Red) · `cbnu-emblem-white.png`(어두운 배경용 흰색) · `apple-touch-icon.png` |
 
 ## GitHub Pages 배포
 
@@ -54,3 +55,4 @@ links: {
 - 현재 선수단·임원·회계·공지 데이터는 **예시**입니다. 실제 명단과 장부로 바꿔 주세요.
 - 지원서·건의사항은 정적 사이트라 서버로 전송되지 않습니다. 작성 내용을 요약해 **복사 → 오픈채팅/문자로 전달**하는 방식이며, 구글 폼 링크를 넣으면 폼 접수로 바로 연결됩니다.
 - 폰트는 CDN(Pretendard, Barlow Condensed)을 불러옵니다. 오프라인에서는 시스템 폰트로 표시됩니다.
+- 엠블럼 이미지는 충북대학교 공식 홈페이지 심볼 페이지(https://chungbuk.ac.kr/www/selectWebSymbol.do?key=601&symbol=8)의 공식 심볼 PNG를 사용했습니다. 흰색 버전은 같은 이미지의 형태를 그대로 두고 색만 흰색으로 바꾼 것입니다.

@@ -25,7 +25,7 @@ window.CBNU_FS = {
     stats: [
       { value: "2016", label: "창단" },
       { value: "24", label: "현재 부원", unit: "명" },
-      { value: "주 2회", label: "정기 훈련" },
+      { value: "주 1회", label: "정기 훈련" },
       { value: "중앙", label: "소속 동아리" }
     ]
   },
@@ -41,7 +41,7 @@ window.CBNU_FS = {
       icon: "icon-run",
       title: "KEEP RUNNING",
       subtitle: "꾸준함이 실력",
-      desc: "한 번의 폭발력보다 주 2회 코트에 나오는 습관을 믿습니다. 시험 기간에도 짧게라도 공을 잡고, 방학에는 자율 훈련으로 리듬을 이어갑니다."
+      desc: "한 번의 폭발력보다 주 1회 코트에 나오는 습관을 믿습니다. 시험 기간에도 짧게라도 공을 잡고, 방학에는 자율 훈련으로 리듬을 이어갑니다."
     },
     {
       icon: "icon-heart",
@@ -57,12 +57,12 @@ window.CBNU_FS = {
     {
       icon: "icon-ball",
       title: "정기 훈련",
-      lines: ["화·목 19:00 – 21:00", "시험 기간에는 자율 훈련으로 전환"]
+      lines: ["주 1회 · 요일/시간 추후 공지", "시험 기간에는 자율 훈련으로 전환"]
     },
     {
       icon: "icon-pin",
       title: "훈련 장소",
-      lines: ["충북대학교 체육관 실내 코트", "우천·한파에도 동일하게 진행"]
+      lines: ["충북대 스포츠센터 풋살구장", "매주 1회 진행 · 변경 시 사전 공지"]
     },
     {
       icon: "icon-shield",
@@ -126,7 +126,7 @@ window.CBNU_FS = {
     eligibility: [
       "충북대학교 재학생·휴학생 (학년·전공 무관)",
       "풋살·축구 경험은 무관합니다. 처음 시작해도 괜찮아요.",
-      "주 2회 훈련에 꾸준히 참여할 수 있는 분",
+      "주 1회 정기 운동에 꾸준히 참여할 수 있는 분",
       "시험 기간·방학에도 무리 없이 함께할 수 있는 분"
     ],
     timeline: [
@@ -136,7 +136,7 @@ window.CBNU_FS = {
       "포지션·등번호 확정 후 정식 입단"
     ],
     fees: [
-      { label: "정기 운동", value: "화·목 19:00–21:00 (체육관)" },
+      { label: "정기 운동", value: "주 1회 · 요일/시간 추후 공지 (충북대 스포츠센터 풋살구장)" },
       { label: "월 회비", value: "20,000원 (첫 달 면제)" },
       { label: "회비 사용처", value: "코트 사용료, 장비, 대회 참가비" },
       { label: "유니폼", value: "동아리에서 대여 (개인 구매 없음)" },
@@ -150,17 +150,17 @@ window.CBNU_FS = {
     openingDate: "2026-09-01",
     transactions: [
       { date: "2026-09-02", type: "income", category: "회비", desc: "9월 회비 (10명)", amount: 200000, note: "1인 20,000원" },
-      { date: "2026-09-05", type: "expense", category: "코트", desc: "체육관 코트 사용료 (9월)", amount: 60000, note: "주 2회 기준" },
+      { date: "2026-09-05", type: "expense", category: "코트", desc: "풋살구장 사용료 (9월)", amount: 60000, note: "주 1회 기준" },
       { date: "2026-09-12", type: "expense", category: "장비", desc: "풋살공 3개 구입", amount: 54000, note: "훈련용" },
       { date: "2026-09-20", type: "income", category: "후원", desc: "경영학부 학생회 지원금", amount: 150000, note: "" },
       { date: "2026-09-27", type: "expense", category: "대회", desc: "교내 리그 참가비", amount: 50000, note: "" },
       { date: "2026-10-01", type: "income", category: "회비", desc: "10월 회비 (11명)", amount: 220000, note: "1인 20,000원" },
-      { date: "2026-10-03", type: "expense", category: "코트", desc: "체육관 코트 사용료 (10월)", amount: 60000, note: "주 2회 기준" },
+      { date: "2026-10-03", type: "expense", category: "코트", desc: "풋살구장 사용료 (10월)", amount: 60000, note: "주 1회 기준" },
       { date: "2026-10-11", type: "expense", category: "친목", desc: "가을 MT 숙소·식비", amount: 180000, note: "18명 참여" },
       { date: "2026-10-18", type: "expense", category: "유니폼", desc: "신입 유니폼 2벌", amount: 76000, note: "" },
       { date: "2026-10-25", type: "income", category: "후원", desc: "동아리 연합 지원금", amount: 100000, note: "" },
       { date: "2026-11-01", type: "income", category: "회비", desc: "11월 회비 (12명)", amount: 240000, note: "1인 20,000원" },
-      { date: "2026-11-03", type: "expense", category: "코트", desc: "체육관 코트 사용료 (11월)", amount: 60000, note: "주 2회 기준" },
+      { date: "2026-11-03", type: "expense", category: "코트", desc: "풋살구장 사용료 (11월)", amount: 60000, note: "주 1회 기준" },
       { date: "2026-11-08", type: "expense", category: "장비", desc: "훈련용 조끼·라바콘", amount: 32000, note: "" },
       { date: "2026-11-14", type: "expense", category: "대회", desc: "전국 대학 풋살 대회 참가비", amount: 120000, note: "11월 29일" },
       { date: "2026-11-16", type: "income", category: "기타", desc: "중고 유니폼 판매", amount: 40000, note: "" }
@@ -191,12 +191,12 @@ window.CBNU_FS = {
 
   /* 다가오는 일정 */
   schedule: [
-    { date: "2026-11-19", day: "목", title: "정기 훈련", time: "19:00", place: "체육관 A코트" },
-    { date: "2026-11-24", day: "화", title: "정기 훈련", time: "19:00", place: "체육관 A코트" },
+    { date: "2026-11-19", day: "목", title: "정기 훈련", time: "시간 추후 공지", place: "충북대 스포츠센터 풋살구장" },
     { date: "2026-11-26", day: "목", title: "친선 경기 vs 청주대 FS", time: "20:00", place: "청주대 실내코트" },
     { date: "2026-11-29", day: "일", title: "전국 대학 풋살 대회", time: "09:00", place: "청주 실내체육관" },
-    { date: "2026-12-06", day: "토", title: "교내 리그 예선", time: "10:00", place: "체육관 A코트" },
-    { date: "2026-12-13", day: "토", title: "교내 리그 결승", time: "14:00", place: "체육관 A코트" }
+    { date: "2026-12-03", day: "목", title: "정기 훈련", time: "시간 추후 공지", place: "충북대 스포츠센터 풋살구장" },
+    { date: "2026-12-06", day: "토", title: "교내 리그 예선", time: "10:00", place: "충북대 스포츠센터 풋살구장" },
+    { date: "2026-12-13", day: "토", title: "교내 리그 결승", time: "14:00", place: "충북대 스포츠센터 풋살구장" }
   ],
 
   /* FAQ */
@@ -211,7 +211,7 @@ window.CBNU_FS = {
     },
     {
       q: "정기 운동은 언제 하나요?",
-      a: "화요일과 목요일 19:00–21:00에 체육관 실내 코트에서 진행합니다. 시험 기간에는 자율 훈련으로 바꾸고, 방학 중에는 주 1회 정도로 조정합니다."
+      a: "정기 운동은 주 1회, 충북대 스포츠센터 풋살구장에서 진행합니다. 요일과 시간은 확정되는 대로 공지로 알려 드리고, 시험 기간에는 자율 훈련으로 바꿉니다."
     },
     {
       q: "회비는 얼마이고 어디에 쓰이나요?",
@@ -232,7 +232,7 @@ window.CBNU_FS = {
     instagram: { label: "@cbnu_fs", url: "" },
     openchat: { label: "오픈채팅", url: "" },
     email: "",
-    place: "충북대학교 체육관 실내 코트"
+    place: "충북대 스포츠센터 풋살구장"
   },
 
   /* 외부 링크 — 실제 주소를 넣으면 버튼이 바로 연결됩니다 */

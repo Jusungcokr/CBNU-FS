@@ -199,7 +199,7 @@ code {
 }
 
 .brand { display: inline-flex; align-items: center; gap: 11px; }
-.brand-mark { width: 34px; height: 38px; flex: none; }
+.brand-mark { width: auto; height: 40px; flex: none; display: block; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.05; }
 .brand-text strong {
   font-family: var(--font-display);
@@ -314,15 +314,15 @@ body.nav-open .nav-toggle span:nth-child(3) { transform: translateY(-7px) rotate
   top: 50%;
   right: 0;
   height: 84%;
-  max-height: 560px;
   width: auto;
+  max-height: 560px;
   transform: translateY(-50%) rotate(-6deg);
   opacity: 0.05;
 }
 
 .hero-mark {
-  width: clamp(84px, 10vw, 112px);
-  height: auto;
+  width: auto;
+  height: clamp(96px, 11vw, 128px);
   margin-bottom: 26px;
   filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.42));
 }
@@ -1433,7 +1433,7 @@ body.nav-open .nav-toggle span:nth-child(3) { transform: translateY(-7px) rotate
   align-items: start;
 }
 .footer-brand { display: flex; align-items: center; gap: 14px; }
-.footer-mark { width: 40px; height: 46px; flex: none; }
+.footer-mark { width: auto; height: 46px; display: block; flex: none; }
 .footer-brand strong {
   display: block;
   font-family: var(--font-display);
