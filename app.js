@@ -1,13 +1,22 @@
 /* =========================================================
    CBNU FS — 화면 동작
-   data.js의 내용을 읽어 각 섹션을 그리고, 내비게이션·필터·
-   폼·모달 같은 상호작용을 처리합니다.
+   data.js의 기본값 + Supabase site_data 를 읽어 각 섹션을 그리고,
+   내비게이션·필터·폼·모달 같은 상호작용을 처리합니다.
    ========================================================= */
 
 (function () {
   "use strict";
 
-  var DATA = window.CBNU_FS || {};
+  var DEFAULTS = window.CBNU_FS || {};
+  var CONFIG = window.CBNU_FS_SUPABASE || {};
+
+  function clone(value) {
+    try { return JSON.parse(JSON.stringify(value)); } catch (err) { return {}; }
+  }
+
+  var DATA = clone(DEFAULTS);
+  DATA.settings = {};
+
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
@@ -41,8 +50,87 @@
 
   function safeArray(value) { return Array.isArray(value) ? value : []; }
 
+  /* ---------------- Supabase 클라이언트 ---------------- */
+  var client = null;
+
+  function getClient() {
+    if (client) { return client; }
+    if (!CONFIG.url || !CONFIG.anonKey) { return null; }
+    if (!window.supabase || typeof window.supabase.createClient !== "function") { return null; }
+    try {
+      client = window.supabase.createClient(CONFIG.url, CONFIG.anonKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      });
+    } catch (err) {
+      client = null;
+    }
+    return client;
+  }
+
+  /* ---------------- 원격 데이터 병합 ---------------- */
+  function defaultSettings() {
+    var hero = DEFAULTS.hero || {};
+    return {
+      site: clone(DEFAULTS.site || {}),
+      hero: { motto: hero.motto || "", sub: hero.sub || "", stats: clone(hero.stats || []) },
+      mottoBand: DEFAULTS.mottoBand || "",
+      training: clone(DEFAULTS.training || []),
+      apply: clone(DEFAULTS.apply || {}),
+      contact: clone(DEFAULTS.contact || {}),
+      links: clone(DEFAULTS.links || {})
+    };
+  }
+
+  function applySettings(settings) {
+    if (!settings || typeof settings !== "object") { return; }
+    if (settings.site) { DATA.site = Object.assign({}, DATA.site, settings.site); }
+    if (settings.hero) { DATA.hero = Object.assign({}, DATA.hero, settings.hero); }
+    if (typeof settings.mottoBand === "string") { DATA.mottoBand = settings.mottoBand; }
+    if (Array.isArray(settings.training)) { DATA.training = settings.training; }
+    if (settings.apply) { DATA.apply = Object.assign({}, DATA.apply, settings.apply); }
+    if (settings.contact) { DATA.contact = Object.assign({}, DATA.contact, settings.contact); }
+    if (settings.links) { DATA.links = Object.assign({}, DATA.links, settings.links); }
+    DATA.settings = Object.assign({}, DATA.settings, settings);
+  }
+
+  function applyRemoteRows(rows) {
+    if (!DATA.settings || !Object.keys(DATA.settings).length) {
+      DATA.settings = defaultSettings();
+    }
+    safeArray(rows).forEach(function (row) {
+      if (!row || !row.key) { return; }
+      var value = row.value;
+      if (value === null || value === undefined) { return; }
+      switch (row.key) {
+        case "settings": applySettings(value); break;
+        case "staff": if (Array.isArray(value)) { DATA.staff = value; } break;
+        case "squad": if (Array.isArray(value)) { DATA.squad = value; } break;
+        case "finance": if (value && typeof value === "object") { DATA.finance = value; } break;
+        case "notices": if (Array.isArray(value)) { DATA.notices = value; } break;
+        case "schedules": if (Array.isArray(value)) { DATA.schedule = value; } break;
+        case "faqs": if (Array.isArray(value)) { DATA.faq = value; } break;
+        default: break;
+      }
+    });
+  }
+
+  function loadRemote() {
+    var c = getClient();
+    if (!c) { return Promise.resolve(false); }
+    return c.from("site_data").select("key,value").then(function (res) {
+      if (res && res.error) { throw res.error; }
+      var rows = (res && res.data) || [];
+      if (!rows.length) { return false; }
+      applyRemoteRows(rows);
+      return true;
+    }).catch(function (err) {
+      if (window.console && console.warn) { console.warn("[CBNU FS] Supabase 데이터를 불러오지 못했습니다.", err); }
+      return false;
+    });
+  }
+
   /* ---------------- 히어로 ---------------- */
-  function initHero() {
+  function renderHero() {
     var hero = DATA.hero || {};
     var motto = $("#heroMotto");
     if (motto && hero.motto) { motto.innerHTML = hero.motto; }
@@ -51,6 +139,7 @@
 
     var list = $("#heroStats");
     if (!list) { return; }
+    list.innerHTML = "";
     safeArray(hero.stats).forEach(function (stat) {
       var li = el("li", "hero-stat");
       var strong = el("strong");
@@ -63,9 +152,10 @@
   }
 
   /* ---------------- 소개 / 가치 / 훈련 ---------------- */
-  function initAbout() {
+  function renderAbout() {
     var grid = $("#valueGrid");
     if (grid) {
+      grid.innerHTML = "";
       safeArray(DATA.values).forEach(function (value, i) {
         var card = el("article", "value-card reveal");
         card.style.transitionDelay = (i * 70) + "ms";
@@ -85,14 +175,15 @@
     }
 
     var motto = $("#mottoText");
-    if (motto && DATA.mottoBand) { motto.textContent = DATA.mottoBand; }
+    if (motto) { motto.textContent = DATA.mottoBand || ""; }
 
     var training = $("#trainingGrid");
     if (training) {
+      training.innerHTML = "";
       safeArray(DATA.training).forEach(function (item) {
         var card = el("article", "training-card reveal");
         var head = el("div", "training-head");
-        head.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#' + item.icon + '"></use></svg>';
+        head.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#' + (item.icon || "icon-ball") + '"></use></svg>';
         head.appendChild(el("h3", null, item.title));
         card.appendChild(head);
         safeArray(item.lines).forEach(function (line, idx) {
@@ -104,36 +195,44 @@
 
     var stripTraining = $("#stripTraining");
     if (stripTraining && DATA.training && DATA.training[0]) {
-      stripTraining.textContent = DATA.training[0].lines[0];
+      stripTraining.textContent = (DATA.training[0].lines || [])[0] || "";
     }
     var stripPlace = $("#stripPlace");
     if (stripPlace && DATA.training && DATA.training[1]) {
-      stripPlace.textContent = DATA.training[1].lines[0];
+      stripPlace.textContent = (DATA.training[1].lines || [])[0] || "";
     }
+
+    var lead = $("#aboutLead");
+    if (lead && DATA.site && DATA.site.description) { lead.textContent = DATA.site.description; }
   }
 
   /* ---------------- 임원진 ---------------- */
-  function initStaff() {
+  function renderStaff() {
     var grid = $("#staffGrid");
     if (!grid) { return; }
+    grid.innerHTML = "";
     var staff = safeArray(DATA.staff);
 
     staff.forEach(function (person, i) {
       var card = el("article", "staff-card reveal");
       card.style.transitionDelay = (i * 60) + "ms";
 
-      card.appendChild(el("span", "staff-role", person.role));
+      if (person.role) { card.appendChild(el("span", "staff-role", person.role)); }
 
       var avatar = el("div", "staff-avatar", person.name ? person.name.charAt(0) : "?");
       card.appendChild(avatar);
 
       card.appendChild(el("h4", "staff-name", person.name));
-      card.appendChild(el("p", "staff-dept", person.dept));
+      if (person.dept) { card.appendChild(el("p", "staff-dept", person.dept)); }
       if (person.duty) { card.appendChild(el("p", "staff-duty", person.duty)); }
       if (person.intro) { card.appendChild(el("p", "staff-intro", "“" + person.intro + "”")); }
 
       grid.appendChild(card);
     });
+
+    if (!staff.length) {
+      grid.appendChild(el("p", "empty-state", "등록된 임원 정보가 없습니다."));
+    }
 
     var count = $("#staffCount");
     if (count) { count.textContent = staff.length + "명"; }
@@ -148,11 +247,14 @@
     { key: "PIVO", label: "PIVO" }
   ];
 
+  var squadFilter = "all";
+
   function renderSquad(filter) {
     var grid = $("#squadGrid");
     if (!grid) { return; }
     var squad = safeArray(DATA.squad);
-    var list = filter === "all" ? squad : squad.filter(function (p) { return p.pos === filter; });
+    var key = filter || squadFilter || "all";
+    var list = key === "all" ? squad : squad.filter(function (p) { return p.pos === key; });
 
     grid.innerHTML = "";
 
@@ -161,12 +263,13 @@
       card.style.transitionDelay = (i * 30) + "ms";
 
       var top = el("div", "player-top");
-      top.appendChild(el("span", "pos-chip pos-" + player.pos.toLowerCase(), player.pos));
+      var pos = String(player.pos || "").trim();
+      top.appendChild(el("span", "pos-chip pos-" + pos.toLowerCase(), pos || "—"));
       top.appendChild(el("span", "player-no", ("0" + player.no).slice(-2)));
       card.appendChild(top);
 
       card.appendChild(el("h4", "player-name", player.name));
-      card.appendChild(el("p", "player-dept", player.dept));
+      if (player.dept) { card.appendChild(el("p", "player-dept", player.dept)); }
       if (player.intro) { card.appendChild(el("p", "player-intro", player.intro)); }
 
       grid.appendChild(card);
@@ -177,43 +280,44 @@
     }
   }
 
-  function initSquad() {
+  function renderSquadTabs() {
     var tabs = $("#positionTabs");
     var squad = safeArray(DATA.squad);
+    if (!tabs) { return; }
+    tabs.innerHTML = "";
 
-    if (tabs) {
-      POSITIONS.forEach(function (pos) {
-        var count = pos.key === "all" ? squad.length : squad.filter(function (p) { return p.pos === pos.key; }).length;
-        var btn = el("button", "chip" + (pos.key === "all" ? " is-active" : ""));
-        btn.type = "button";
-        btn.setAttribute("aria-pressed", pos.key === "all" ? "true" : "false");
-        btn.appendChild(document.createTextNode(pos.label));
-        btn.appendChild(el("span", "chip-count", count));
-        btn.addEventListener("click", function () {
-          $$(".chip", tabs).forEach(function (other) {
-            other.classList.remove("is-active");
-            other.setAttribute("aria-pressed", "false");
-          });
-          btn.classList.add("is-active");
-          btn.setAttribute("aria-pressed", "true");
-          renderSquad(pos.key);
+    POSITIONS.forEach(function (pos) {
+      var count = pos.key === "all" ? squad.length : squad.filter(function (p) { return p.pos === pos.key; }).length;
+      var active = pos.key === squadFilter;
+      var btn = el("button", "chip" + (active ? " is-active" : ""));
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      btn.appendChild(document.createTextNode(pos.label));
+      btn.appendChild(el("span", "chip-count", count));
+      btn.addEventListener("click", function () {
+        squadFilter = pos.key;
+        $$(".chip", tabs).forEach(function (other) {
+          other.classList.remove("is-active");
+          other.setAttribute("aria-pressed", "false");
         });
-        tabs.appendChild(btn);
+        btn.classList.add("is-active");
+        btn.setAttribute("aria-pressed", "true");
+        renderSquad(pos.key);
       });
-    }
-
-    renderSquad("all");
+      tabs.appendChild(btn);
+    });
 
     var count = $("#squadCount");
     if (count) { count.textContent = squad.length + "명"; }
   }
 
   /* ---------------- 지원 안내 ---------------- */
-  function initApplyInfo() {
+  function renderApplyInfo() {
     var apply = DATA.apply || {};
 
     var eligibility = $("#applyEligibility");
     if (eligibility) {
+      eligibility.innerHTML = "";
       safeArray(apply.eligibility).forEach(function (text) {
         eligibility.appendChild(el("li", null, text));
       });
@@ -221,6 +325,7 @@
 
     var timeline = $("#applyTimeline");
     if (timeline) {
+      timeline.innerHTML = "";
       safeArray(apply.timeline).forEach(function (text, i) {
         var li = el("li");
         li.appendChild(el("span", "step-no", ("0" + (i + 1)).slice(-2)));
@@ -231,6 +336,7 @@
 
     var fees = $("#applyFees");
     if (fees) {
+      fees.innerHTML = "";
       safeArray(apply.fees).forEach(function (row) {
         var wrap = el("div", "info-row");
         wrap.appendChild(el("dt", null, row.label));
@@ -280,11 +386,12 @@
     };
   }
 
-  function initFinance() {
+  function renderFinance() {
     var ledger = buildLedger();
     var cards = $("#financeCards");
 
     if (cards) {
+      cards.innerHTML = "";
       var items = [
         { label: "총 수입", value: ledger.income, tone: "income", note: "회비·후원·기타" },
         { label: "총 지출", value: ledger.expense, tone: "expense", note: "코트·장비·대회·친목" },
@@ -308,6 +415,7 @@
     months.sort();
 
     if (select) {
+      select.innerHTML = "";
       var allOpt = el("option", null, "전체 기간");
       allOpt.value = "all";
       select.appendChild(allOpt);
@@ -317,26 +425,10 @@
         opt.value = key;
         select.appendChild(opt);
       });
-      select.addEventListener("change", function () {
-        financeState.month = select.value;
-        renderLedger(ledger);
-      });
-    }
-
-    var filter = $("#financeTypeFilter");
-    if (filter) {
-      $$(".chip", filter).forEach(function (chip) {
-        chip.addEventListener("click", function () {
-          $$(".chip", filter).forEach(function (other) {
-            other.classList.remove("is-active");
-            other.setAttribute("aria-pressed", "false");
-          });
-          chip.classList.add("is-active");
-          chip.setAttribute("aria-pressed", "true");
-          financeState.type = chip.getAttribute("data-type");
-          renderLedger(ledger);
-        });
-      });
+      if (financeState.month !== "all" && months.indexOf(financeState.month) === -1) {
+        financeState.month = "all";
+      }
+      select.value = financeState.month;
     }
 
     renderLedger(ledger);
@@ -416,9 +508,10 @@
   }
 
   /* ---------------- FAQ ---------------- */
-  function initFaq() {
+  function renderFaq() {
     var list = $("#faqList");
     if (!list) { return; }
+    list.innerHTML = "";
 
     safeArray(DATA.faq).forEach(function (item, i) {
       var wrap = el("div", "faq-item reveal");
@@ -463,15 +556,17 @@
   }
 
   /* ---------------- 공지 / 일정 ---------------- */
-  function initNews() {
+  function renderNews() {
     var noticeList = $("#noticeList");
     if (noticeList) {
+      noticeList.innerHTML = "";
       safeArray(DATA.notices).forEach(function (notice, i) {
         var card = el("article", "notice-card reveal");
         card.style.transitionDelay = (i * 60) + "ms";
 
         var meta = el("div", "notice-meta");
-        meta.appendChild(el("span", "notice-tag tag-" + (notice.tag === "모집" ? "join" : notice.tag === "일정" ? "schedule" : "notice"), notice.tag));
+        var tag = notice.tag || "공지";
+        meta.appendChild(el("span", "notice-tag tag-" + (tag === "모집" ? "join" : tag === "일정" ? "schedule" : "notice"), tag));
         meta.appendChild(el("time", "notice-date", formatDate(notice.date)));
         card.appendChild(meta);
 
@@ -483,16 +578,17 @@
 
     var scheduleList = $("#scheduleList");
     if (scheduleList) {
+      scheduleList.innerHTML = "";
       safeArray(DATA.schedule).forEach(function (item) {
         var li = el("li", "schedule-item");
         var date = el("div", "schedule-date");
         date.appendChild(el("strong", null, formatDayMonth(item.date)));
-        date.appendChild(el("span", null, item.day + "요일"));
+        date.appendChild(el("span", null, (item.day || "") + "요일"));
         li.appendChild(date);
 
         var body = el("div", "schedule-body");
         body.appendChild(el("p", "schedule-title", item.title));
-        body.appendChild(el("p", "schedule-info", item.time + " · " + item.place));
+        body.appendChild(el("p", "schedule-info", (item.time || "") + " · " + (item.place || "")));
         li.appendChild(body);
 
         scheduleList.appendChild(li);
@@ -516,7 +612,13 @@
     return links[key] || "";
   }
 
-  function initContact() {
+  function linkLabel(key) {
+    if (key === "googleForm") { return "구글 폼"; }
+    if (key === "instagram") { return "인스타그램"; }
+    return "오픈채팅";
+  }
+
+  function renderContact() {
     var contact = DATA.contact || {};
     var insta = contact.instagram || {};
     var label = $("#instagramLabel");
@@ -533,23 +635,41 @@
     $$("[data-link]").forEach(function (node) {
       var key = node.getAttribute("data-link");
       var url = resolveLink(key);
-      if (url) {
-        node.setAttribute("href", url);
-        if (/^https?:/i.test(url)) {
-          node.setAttribute("target", "_blank");
-          node.setAttribute("rel", "noopener noreferrer");
+      if (node.tagName === "A") {
+        if (url) {
+          node.setAttribute("href", url);
+          if (/^https?:/i.test(url) || /^mailto:/i.test(url)) {
+            node.setAttribute("target", "_blank");
+            node.setAttribute("rel", "noopener noreferrer");
+          }
+        } else {
+          node.setAttribute("href", "#");
         }
-        return;
       }
+    });
+  }
 
+  function initContact() {
+    $$("[data-link]").forEach(function (node) {
+      if (node.dataset.linkBound) { return; }
+      node.dataset.linkBound = "1";
       node.addEventListener("click", function (event) {
+        var key = node.getAttribute("data-link");
+        var url = resolveLink(key);
+        if (url) {
+          if (node.tagName !== "A") {
+            event.preventDefault();
+            window.open(url, "_blank", "noopener");
+          }
+          return;
+        }
         event.preventDefault();
-        var labelText = node.getAttribute("data-contact-label") || (key === "googleForm" ? "구글 폼" : "오픈채팅");
+        var labelText = node.getAttribute("data-contact-label") || linkLabel(key);
         openModal({
           title: labelText + " 링크 준비 중",
           body:
             '<p class="modal-text">' + labelText + ' 주소가 아직 연결되지 않았습니다. 동아리 임원진에게 직접 문의해 주세요.</p>' +
-            '<p class="modal-hint">사이트 관리자는 <code>data.js</code>의 <code>links</code> 값에 주소를 넣으면 이 버튼이 바로 연결됩니다.</p>',
+            '<p class="modal-hint">관리자(임원 관리)에서 연락처·링크를 등록하면 이 버튼이 바로 연결됩니다.</p>',
           actions: [{ label: "확인", variant: "primary" }]
         });
       });
@@ -611,6 +731,7 @@
     });
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape" || event.key === "Esc") {
+        if (document.body.classList.contains("admin-open")) { return; }
         closeModal();
       }
     });
@@ -698,15 +819,11 @@
     }
   }
 
-  function buildApplySummary() {
-    var values = {
-      name: fieldValue("applyName"),
-      dept: fieldValue("applyDept"),
-      phone: fieldValue("applyPhone"),
-      position: fieldValue("applyPosition"),
-      career: fieldValue("applyCareer"),
-      motivation: fieldValue("applyMotivation")
-    };
+  function digitsOnly(text) {
+    return String(text || "").replace(/[^0-9]/g, "");
+  }
+
+  function buildApplySummary(values) {
     var lines = [
       "[CBNU FS 신입 부원 지원서]",
       "",
@@ -724,21 +841,65 @@
     return lines.join("\n");
   }
 
-  function buildSuggestSummary() {
-    var anonymous = document.getElementById("suggestAnon");
+  function buildSuggestSummary(values) {
     var lines = [
       "[CBNU FS 건의사항]",
       "",
-      "분류: " + fieldValue("suggestCategory"),
-      "제목: " + fieldValue("suggestTitle"),
-      "익명 여부: " + (anonymous && anonymous.checked ? "익명" : "기명"),
+      "분류: " + values.category,
+      "제목: " + values.title,
+      "익명 여부: " + (values.anonymous ? "익명" : (values.author ? "기명 (" + values.author + ")" : "기명")),
       "",
       "내용:",
-      fieldValue("suggestBody"),
+      values.content,
       "",
       "— CBNU FS 웹사이트 건의사항에서 작성"
     ];
     return lines.join("\n");
+  }
+
+  function showSummaryModal(title, summary, hint, submitNote) {
+    var node = el("div", "summary-wrap");
+    node.appendChild(el("pre", "summary", summary));
+    node.appendChild(el("p", "summary-hint", hint));
+    if (submitNote) { node.appendChild(el("p", "summary-status", submitNote)); }
+
+    openModal({
+      title: title,
+      bodyNode: node,
+      actions: [
+        { label: "내용 복사하기", variant: "primary", onClick: function () { copyText(summary); } },
+        { label: "닫기", variant: "ghost" }
+      ]
+    });
+  }
+
+  function submitApplication(values) {
+    var c = getClient();
+    if (!c) { return Promise.reject(new Error("supabase-unavailable")); }
+    var studentId = digitsOnly(values.dept);
+    return c.from("applications").insert({
+      name: values.name,
+      major: values.dept,
+      student_id: studentId.length >= 6 ? studentId : null,
+      phone: values.phone,
+      position: values.position,
+      experience: values.career || null,
+      motivation: values.motivation,
+      status: "접수"
+    });
+  }
+
+  function submitSuggestion(values) {
+    var c = getClient();
+    if (!c) { return Promise.reject(new Error("supabase-unavailable")); }
+    return c.from("suggestions").insert({
+      title: values.title,
+      category: values.category,
+      content: values.content,
+      is_anonymous: Boolean(values.anonymous),
+      author_name: values.anonymous ? null : (values.author || null),
+      status: "접수"
+    });
   }
 
   function initForms() {
@@ -753,7 +914,7 @@
         if (!fieldValue("applyName")) { setError("applyName", "이름을 입력해 주세요."); valid = false; }
         if (!fieldValue("applyDept")) { setError("applyDept", "학과와 학번을 입력해 주세요."); valid = false; }
 
-        var phone = fieldValue("applyPhone").replace(/[^0-9]/g, "");
+        var phone = digitsOnly(fieldValue("applyPhone"));
         if (!phone) { setError("applyPhone", "연락처를 입력해 주세요."); valid = false; }
         else if (phone.length < 9 || phone.length > 11) { setError("applyPhone", "연락 가능한 번호를 정확히 입력해 주세요."); valid = false; }
 
@@ -766,24 +927,39 @@
 
         if (!valid) { focusFirstInvalid(applyForm); return; }
 
-        var summary = buildApplySummary();
-        var node = el("div", "summary-wrap");
-        var pre = el("pre", "summary", summary);
-        node.appendChild(pre);
-        var hint = el("p", "summary-hint", "아래 버튼으로 복사한 뒤, 오픈채팅이나 문자로 담당자에게 전달해 주세요. 입력한 내용은 서버에 저장되지 않습니다.");
-        node.appendChild(hint);
+        var values = {
+          name: fieldValue("applyName"),
+          dept: fieldValue("applyDept"),
+          phone: fieldValue("applyPhone"),
+          position: fieldValue("applyPosition"),
+          career: fieldValue("applyCareer"),
+          motivation: fieldValue("applyMotivation")
+        };
+        var summary = buildApplySummary(values);
 
-        openModal({
-          title: "지원서 내용을 확인해 주세요",
-          bodyNode: node,
-          actions: [
-            {
-              label: "지원 내용 복사하기",
-              variant: "primary",
-              onClick: function () { copyText(summary); }
-            },
-            { label: "수정하기", variant: "ghost" }
-          ]
+        var button = applyForm.querySelector('button[type="submit"]');
+        if (button) { button.disabled = true; }
+
+        submitApplication(values).then(function (res) {
+          if (button) { button.disabled = false; }
+          if (res && res.error) { throw res.error; }
+          applyForm.reset();
+          showSummaryModal(
+            "지원서가 접수되었습니다",
+            summary,
+            "접수 내용은 동아리 임원진이 확인 후 3일 안에 연락드립니다. 필요하면 아래에서 복사해 두세요.",
+            "접수 번호 없이 저장되었으며, 중복 제출을 피하려면 한 번만 눌러 주세요."
+          );
+          showToast("지원서가 접수되었습니다.");
+        }).catch(function (err) {
+          if (button) { button.disabled = false; }
+          if (window.console && console.warn) { console.warn("[CBNU FS] 지원서 저장 실패", err); }
+          showSummaryModal(
+            "지원서 내용을 확인해 주세요",
+            summary,
+            "자동 접수에 실패했습니다. 아래 버튼으로 복사한 뒤 오픈채팅이나 문자로 담당자에게 전달해 주세요.",
+            null
+          );
         });
       });
 
@@ -799,6 +975,17 @@
 
     var suggestForm = $("#suggestForm");
     if (suggestForm) {
+      var anonBox = document.getElementById("suggestAnon");
+      var nameField = document.getElementById("suggestNameField");
+
+      function syncAnon() {
+        if (!nameField) { return; }
+        var isAnon = anonBox && anonBox.checked;
+        nameField.hidden = Boolean(isAnon);
+      }
+      if (anonBox) { anonBox.addEventListener("change", syncAnon); }
+      syncAnon();
+
       suggestForm.addEventListener("submit", function (event) {
         event.preventDefault();
         clearErrors(suggestForm);
@@ -812,25 +999,39 @@
         }
         if (!valid) { focusFirstInvalid(suggestForm); return; }
 
-        var summary = buildSuggestSummary();
-        var anon = document.getElementById("suggestAnon");
-        var node = el("div", "summary-wrap");
-        node.appendChild(el("pre", "summary", summary));
-        node.appendChild(el("p", "summary-hint",
-          (anon && anon.checked ? "익명으로 정리되었습니다. " : "") +
-          "복사한 내용을 오픈채팅으로 보내거나 총무에게 직접 전달해 주세요."));
+        var values = {
+          title: fieldValue("suggestTitle"),
+          category: fieldValue("suggestCategory"),
+          content: fieldValue("suggestBody"),
+          anonymous: Boolean(anonBox && anonBox.checked),
+          author: fieldValue("suggestAuthor")
+        };
+        var summary = buildSuggestSummary(values);
 
-        openModal({
-          title: "건의 내용을 확인해 주세요",
-          bodyNode: node,
-          actions: [
-            {
-              label: "건의 내용 복사하기",
-              variant: "primary",
-              onClick: function () { copyText(summary); }
-            },
-            { label: "수정하기", variant: "ghost" }
-          ]
+        var button = suggestForm.querySelector('button[type="submit"]');
+        if (button) { button.disabled = true; }
+
+        submitSuggestion(values).then(function (res) {
+          if (button) { button.disabled = false; }
+          if (res && res.error) { throw res.error; }
+          suggestForm.reset();
+          syncAnon();
+          showSummaryModal(
+            "건의사항이 접수되었습니다",
+            summary,
+            "접수된 건의는 다음 정기 운영 회의에서 안건으로 다뤄지고, 반영 여부를 2주 안에 안내드립니다.",
+            null
+          );
+          showToast("건의사항이 접수되었습니다.");
+        }).catch(function (err) {
+          if (button) { button.disabled = false; }
+          if (window.console && console.warn) { console.warn("[CBNU FS] 건의사항 저장 실패", err); }
+          showSummaryModal(
+            "건의 내용을 확인해 주세요",
+            summary,
+            "자동 접수에 실패했습니다. 아래 버튼으로 복사해 오픈채팅으로 보내거나 총무에게 직접 전달해 주세요.",
+            null
+          );
         });
       });
 
@@ -840,6 +1041,38 @@
         });
         input.addEventListener("change", function () {
           if (input.id) { setError(input.id, ""); }
+        });
+      });
+    }
+  }
+
+  /* ---------------- 필터 (한 번만 연결) ---------------- */
+  var filtersReady = false;
+
+  function initFilters() {
+    if (filtersReady) { return; }
+    filtersReady = true;
+
+    var select = $("#financeMonth");
+    if (select) {
+      select.addEventListener("change", function () {
+        financeState.month = select.value;
+        renderLedger(buildLedger());
+      });
+    }
+
+    var filter = $("#financeTypeFilter");
+    if (filter) {
+      $$(".chip", filter).forEach(function (chip) {
+        chip.addEventListener("click", function () {
+          $$(".chip", filter).forEach(function (other) {
+            other.classList.remove("is-active");
+            other.setAttribute("aria-pressed", "false");
+          });
+          chip.classList.add("is-active");
+          chip.setAttribute("aria-pressed", "true");
+          financeState.type = chip.getAttribute("data-type");
+          renderLedger(buildLedger());
         });
       });
     }
@@ -919,6 +1152,8 @@
   }
 
   /* ---------------- 등장 애니메이션 ---------------- */
+  var revealObserver = null;
+
   function initReveal() {
     var items = $$(".reveal");
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -928,19 +1163,19 @@
       return;
     }
 
-    var observer = new IntersectionObserver(function (entries) {
+    revealObserver = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) { return; }
         entry.target.classList.add("is-visible");
-        observer.unobserve(entry.target);
+        revealObserver.unobserve(entry.target);
       });
     }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
 
-    items.forEach(function (item) { observer.observe(item); });
+    items.forEach(function (item) { revealObserver.observe(item); });
 
     // JS로 나중에 추가된 카드도 관찰
     var gridObserver = new MutationObserver(function () {
-      $$(".reveal:not(.is-visible)").forEach(function (item) { observer.observe(item); });
+      $$(".reveal:not(.is-visible)").forEach(function (item) { revealObserver.observe(item); });
     });
     gridObserver.observe(document.body, { childList: true, subtree: true });
   }
@@ -948,25 +1183,61 @@
   function initFooter() {
     var year = $("#footerYear");
     if (year) { year.textContent = String(new Date().getFullYear()); }
+    var title = $("#brandText");
+    if (title && DATA.site && DATA.site.name) { title.textContent = DATA.site.name; }
+  }
+
+  /* ---------------- 전체 렌더 ---------------- */
+  function renderAll() {
+    renderHero();
+    renderAbout();
+    renderStaff();
+    renderSquadTabs();
+    renderSquad(squadFilter);
+    renderApplyInfo();
+    renderFinance();
+    renderFaq();
+    renderNews();
+    renderContact();
   }
 
   /* ---------------- 시작 ---------------- */
   function boot() {
-    initHero();
-    initAbout();
-    initStaff();
-    initSquad();
-    initApplyInfo();
-    initFinance();
-    initFaq();
-    initNews();
+    DATA.settings = defaultSettings();
     initModal();
     initContact();
+    initFilters();
     initForms();
     initNav();
     initFooter();
+    renderAll();
     initReveal();
+
+    loadRemote().then(function (loaded) {
+      if (!loaded) { return; }
+      renderAll();
+      document.dispatchEvent(new CustomEvent("cbnu:data-loaded"));
+    }).catch(function () { /* 기본 data.js 값으로 동작 */ });
   }
+
+  window.CBNU_APP = {
+    data: function () { return DATA; },
+    settings: function () { return DATA.settings || {}; },
+    render: renderAll,
+    applyRows: applyRemoteRows,
+    reload: function () {
+      return loadRemote().then(function (loaded) {
+        renderAll();
+        return loaded;
+      });
+    },
+    client: getClient,
+    config: CONFIG,
+    toast: showToast,
+    openModal: openModal,
+    closeModal: closeModal,
+    copy: copyText
+  };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
