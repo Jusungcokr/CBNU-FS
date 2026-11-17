@@ -823,6 +823,14 @@
     return String(text || "").replace(/[^0-9]/g, "");
   }
 
+  // "경영학부 25학번 (2025012345)" 처럼 섞여 있어도 학번(6자리 이상)만 뽑아낸다.
+  function extractStudentId(text) {
+    var groups = String(text || "").match(/[0-9]{6,}/g) || [];
+    if (!groups.length) { return null; }
+    groups.sort(function (a, b) { return b.length - a.length; });
+    return groups[0];
+  }
+
   function buildApplySummary(values) {
     var lines = [
       "[CBNU FS 신입 부원 지원서]",
@@ -876,11 +884,10 @@
   function submitApplication(values) {
     var c = getClient();
     if (!c) { return Promise.reject(new Error("supabase-unavailable")); }
-    var studentId = digitsOnly(values.dept);
     return c.from("applications").insert({
       name: values.name,
       major: values.dept,
-      student_id: studentId.length >= 6 ? studentId : null,
+      student_id: extractStudentId(values.dept),
       phone: values.phone,
       position: values.position,
       experience: values.career || null,
