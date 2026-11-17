@@ -218,7 +218,7 @@
     }
 
     // 초대/재설정 링크로 들어온 경우 비밀번호 설정 화면을 연다
-    var hash = String(window.location.hash || "");
+    var hash = String((APP && APP.initialHash) || window.location.hash || "");
     if (/type=(recovery|invite)/.test(hash) || /access_token=/.test(hash)) {
       state.needPassword = true;
       window.setTimeout(openPanel, 600);
@@ -298,6 +298,10 @@
     if (state.session && state.session.user) {
       headActions.appendChild(el("span", "adm-badge", state.session.user.email || ""));
       if (state.admin) {
+        headActions.appendChild(button("비밀번호 설정", "outline", function () {
+          state.needPassword = true;
+          renderViews();
+        }));
         headActions.appendChild(button("로그아웃", "ghost", function () {
           var c = client();
           if (!c) { return; }

@@ -9,6 +9,8 @@
 
   var DEFAULTS = window.CBNU_FS || {};
   var CONFIG = window.CBNU_FS_SUPABASE || {};
+  // supabase-js가 URL 해시를 소거하기 전에 초대/재설정 링크 여부를 기억해 둔다.
+  var INITIAL_HASH = String(window.location.hash || "");
 
   function clone(value) {
     try { return JSON.parse(JSON.stringify(value)); } catch (err) { return {}; }
@@ -1229,6 +1231,7 @@
 
   window.CBNU_APP = {
     data: function () { return DATA; },
+    initialHash: INITIAL_HASH,
     settings: function () { return DATA.settings || {}; },
     render: renderAll,
     applyRows: applyRemoteRows,
